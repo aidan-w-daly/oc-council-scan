@@ -1,0 +1,5 @@
+#windows thumbnails
+Thumbs.db
+
+#virtual environment
+.venv
