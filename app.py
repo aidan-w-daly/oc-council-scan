@@ -15,22 +15,24 @@ print("Running...")
 #Where do new city council agendas get uploaded? + In what format?
 url_anaheim = "https://www.anaheim.net/2527/Agendas" #list of city council agenda links, + viewer
 url_santa_ana = "https://santa-ana.primegov.com/public/portal?" #iframe, taken from https://www.santa-ana.org/agendas-and-minutes/
-url_garden_grove = "https://agendasuite.org/iip/gardengrove/agendaitem/list" #Not a list of agendas, but a list of agenda items
+url_garden_grove = "https://agendasuite.org/iip/gardengrove/search" #Have to search, filter by city council meetings
 url_city_of_orange = "https://www.cityoforange.org/our-city/local-government/city-council/city-council-meetings/-selcat-32#eventcats_46_0_36" #List of city council meetings, agenda in each one
 url_huntington_beach = "https://huntingtonbeach.legistar.com/Calendar.aspx" #List of all meetings with agenda links
 
-#TODO also find date of most recent meeting
+#TODO also find date of most recent meeting inside of iframe
 def get_last_agenda_an():
     page_anaheim = requests.get(url_anaheim)
-    soup_an = BeautifulSoup(page_anaheim.content, "lxml")
-    agenda = soup_an.find('a', class_='Hyperlink', title='Print Current Agenda')
+    soup = BeautifulSoup(page_anaheim.content, "lxml")
+    print_agenda = soup.find('a', class_='Hyperlink', title='Print Current Agenda')
+    #agenda_date = soup.find('a', target='fraAgenda') #inside of iframe...
 
-    print(agenda['href'])
+    #print(agenda_date)
+    print(print_agenda['href'])
 
-#Selenium
+#TODO decrease time to run
 def get_last_agenda_sa():
     options = FirefoxOptions()
-    options.add_argument("--headless")
+    options.add_argument("--headless --block-images")
     driver = webdriver.Firefox(options=options)
     driver.get(url_santa_ana)
 
@@ -51,14 +53,46 @@ def get_last_agenda_sa():
         print(agenda_date_cell.text)
         print(agenda_link.get_attribute('href'))
     except:
-        print("An exception occurred.")
+        print("An exception occurred in get_last_agenda_sa()")
     finally:
         driver.quit()
 
-#TODO
+#TODO decrease time to run
 def get_last_agenda_gg():
-    page_garden_grove = requests.get(url_garden_grove)
-    soup_gg = BeautifulSoup(page_garden_grove.content, "lxml")
+    #page_garden_grove = requests.get(url_garden_grove)
+    #soup_gg = BeautifulSoup(page_garden_grove.content, "lxml")
+
+    options = FirefoxOptions()
+    options.add_argument("--headless")
+    driver = webdriver.Firefox(options=options)
+    driver.get(url_garden_grove)
+
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.ID, 'searchbutton'))
+        )
+        search_field = driver.find_element(By.ID, 'SearchFilters_SearchString')
+        search_field.send_keys('.')
+
+        organization_dropdown = driver.find_element(By.ID, 'SearchFilters_SelectedOrganizationFilterId')
+        Select(organization_dropdown).select_by_visible_text('City Council')
+
+        agenda_checkbox = driver.find_element(By.ID, 'SearchFilters_InNotification')
+        agenda_checkbox.click()
+
+        search_button = driver.find_element(By.ID, 'searchbutton')
+        search_button.click()
+
+        agenda_link = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, ', City Council'))
+        )
+
+        print(agenda_link.find_element(By.XPATH, '../preceding-sibling::*[1]').text) #date
+        print(agenda_link.get_attribute('href')) #agenda pdf link
+    except:
+        print("An exception occurred in get_last_agenda_gg()")
+    finally:
+        driver.quit()
 
 #TODO
 def get_last_agenda_co():
