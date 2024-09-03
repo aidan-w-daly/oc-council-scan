@@ -9,6 +9,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.keys import Keys
 
 
 print("Running...")
@@ -108,14 +109,49 @@ def get_last_agenda_gg():
 #TODO can BeautifulSoup select dropdown menus?
 #ANSWER: Not that I can figure out!
 #TODO Selenium:
+#TODO   - replace time.sleep with appropriate WebDriverWait (already tried element_to_be_clickable, try staleness_of?)
 def get_last_agenda_co():
     options = FirefoxOptions()
-    options.add_argument("--headless --block-images")
+    options.add_argument("--block-images")
     driver = webdriver.Firefox(options=options)
     driver.get(url_city_of_orange)
 
     try:
-        print('success')
+        #Selecting 'all years' as "dropdown"(<input>) "option" (<li>)
+        WebDriverWait(driver, 60).until(
+            EC.element_to_be_clickable((By.ID, 'ctl00_ContentPlaceHolder1_lstYears_Input'))
+        )
+
+        date_dropdown = driver.find_element(By.ID, 'ctl00_ContentPlaceHolder1_lstYears_Input')
+        driver.execute_script("arguments[0].click();", date_dropdown) #instead of .click() to bypass html layer
+
+        for x in range(11):
+            date_dropdown.send_keys(Keys.ARROW_UP)
+        date_dropdown.send_keys(Keys.ENTER)
+
+
+        time.sleep(5)
+        #selecting city council in department "dropdown" 
+        WebDriverWait(driver, 60).until(
+            EC.staleness_of((By.ID, 'ctl00_ContentPlaceHolder1_lstBodies_Input'))
+        )
+
+        departments_dropdown = driver.find_element(By.ID, 'ctl00_ContentPlaceHolder1_lstBodies_Input')
+        driver.execute_script("arguments[0].click();", departments_dropdown) #instead of .click() to bypass html layer
+        departments_dropdown.send_keys(Keys.ARROW_DOWN)
+        departments_dropdown.send_keys(Keys.ENTER)
+
+
+        time.sleep(5)
+        #searching table for agenda
+        WebDriverWait(driver, 60).until(
+            EC.presence_of_element_located((By.XPATH, '//*[@id="ctl00_ContentPlaceHolder1_gridCalendar_ctl00"]'))
+        )
+        all_meetings_table = driver.find_element(By.XPATH, '//*[@id="ctl00_ContentPlaceHolder1_gridCalendar_ctl00"]')
+        agenda_link = all_meetings_table.find_element(By.XPATH, './/a[text()="Agenda" or contains(text(), "Cancel")]')
+
+        print(agenda_link.find_element(By.XPATH, '../../preceding-sibling::*[5]').text) #date
+        print(agenda_link.get_attribute('href')) #agenda pdf link
     # except:
     #     print("An exception occurred in get_last_agenda_co()")
     finally:
@@ -127,5 +163,7 @@ def get_last_agenda_hb():
     page_huntington_beach = requests.get(url_huntington_beach)
     soup_hb = BeautifulSoup(page_huntington_beach.content, "lxml")
 
-get_last_agenda_gg()
+for x in range(5):
+    print(x)
+    get_last_agenda_co()
 
