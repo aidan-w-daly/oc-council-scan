@@ -20,10 +20,24 @@ url_garden_grove = "https://agendasuite.org/iip/gardengrove/search" #Have to sea
 url_city_of_orange = "https://cityoforange.legistar.com/Calendar.aspx" #List of city council meetings, agenda in each one
 url_huntington_beach = "https://huntingtonbeach.legistar.com/Calendar.aspx" #List of all meetings with agenda links
 
+class Agenda:
+    def __init__(self, date, body, city, href):
+        self.date = date
+        self.body = body
+        self.city = city
+        self.href = href
+
+    def __str__(self):
+        return f"{self.date} {self.city} {self.body}: {self.href}"
 
 #TODO ALL
 #   - Handle agenda cancellation (notify user?)
+#       - Parity between cities - do I ignore Cancellation Notice or do I treat it as Agenda?
+#   - Date Parity between cities (date of council meeting vs date of agenda upload)
 #   - Optimize time to run (selenium)
+#       - use bs4 when possible
+#       - avoid load times
+#       - Can html agenda be used instead of pdf agenda?
 #   - Exception handling (necessary? easier to bugfix w/o)
 
 def get_last_agenda_an():
@@ -31,13 +45,14 @@ def get_last_agenda_an():
     soup = BeautifulSoup(page_anaheim.content, "lxml")
     print_agenda = soup.find('a', class_='Hyperlink', title='Print Current Agenda')
     
-    #switching to frame
+    #switching to frame inside url_anaheim to get date
     page_anaheim = requests.get('https://local.anaheim.net/OpenData/xml/XMLrender.aspx?x=CouncilMeetingAgendas')
     soup = BeautifulSoup(page_anaheim.content, 'lxml')
     agenda_date = soup.find('a', target='fraAgenda')
 
-    print(agenda_date.text)
-    print(print_agenda['href'])
+    #print(agenda_date.text)
+    #print(print_agenda['href'])
+    return Agenda(agenda_date.text, 'CC', 'Anaheim', print_agenda['href'])
 
 #TODO decrease time to run
 def get_last_agenda_sa():
@@ -60,14 +75,17 @@ def get_last_agenda_sa():
         agenda_date_cell = agenda_title_cell.find_element(By.XPATH, './following-sibling::*[1]')
         agenda_link = agenda_title_cell.find_element(By.XPATH, '..//a[text()="Agenda"]')
 
-        print(agenda_title_cell.text) #Meeting name
-        print(agenda_date_cell.text) #Date/Time
-        print(agenda_link.get_attribute('href')) #link
+        #print(agenda_title_cell.text) #Meeting name
+        #print(agenda_date_cell.text) #Date/Time
+        #print(agenda_link.get_attribute('href')) #link
+        return Agenda(agenda_date_cell.text, 'CC', 'Santa Ana', agenda_link.get_attribute('href'))
     # except:
     #     print("An exception occurred in get_last_agenda_sa()")
     finally:
         driver.quit()
 
+#FIXME cannot see upcoming meetings because only searches from 1 year ago to PRESENT DAY
+#       - Change to be (present day + 1 year)
 #TODO decrease time to run
 #TODO handle cancelled meetings
 #   - No way to detect? In URL only place where meeting shows "CANCELLED" is INSIDE pdf
@@ -94,19 +112,24 @@ def get_last_agenda_gg():
         search_button.click()
         #By default, searches only within last year
 
-        agenda_link = WebDriverWait(driver, 60).until(
+        agenda_link_elem = WebDriverWait(driver, 60).until(
             EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, ', City Council'))
         )
 
-        print(agenda_link.find_element(By.XPATH, '../preceding-sibling::*[1]').text) #date
-        print(agenda_link.get_attribute('href')) #agenda pdf link
+        agenda_date_str = agenda_link_elem.find_element(By.XPATH, '../preceding-sibling::*[1]').text
+        agenda_link_str = agenda_link_elem.get_attribute('href') #pdf link
+        #print(agenda_date_str) #date
+        #print(agenda_link_str) #agenda pdf link
+        return Agenda(agenda_date_str, 'CC', 'Garden Grove', agenda_link_str)
     # except:
     #     print("An exception occurred in get_last_agenda_gg()")
     finally:
         driver.quit()
 
 #TODO Selenium:
-#TODO   - replace time.sleep with appropriate WebDriverWait (already tried element_to_be_clickable, try staleness_of?)
+#TODO Optimize!
+#TODO   - Can I bypass dropdown alltogether by searching entire page? would prevent page refresh/load... if not then:
+#TODO       - replace time.sleep with appropriate WebDriverWait (already tried element_to_be_clickable, try staleness_of?)
 def get_last_agenda_co():
     options = FirefoxOptions()
     options.add_argument("--headless")
@@ -145,17 +168,24 @@ def get_last_agenda_co():
             EC.presence_of_element_located((By.XPATH, '//*[@id="ctl00_ContentPlaceHolder1_gridCalendar_ctl00"]'))
         )
         all_meetings_table = driver.find_element(By.XPATH, '//*[@id="ctl00_ContentPlaceHolder1_gridCalendar_ctl00"]')
-        agenda_link = all_meetings_table.find_element(By.XPATH, './/a[text()="Agenda" or contains(text(), "Cancel")]')
+        agenda_link_elem = all_meetings_table.find_element(By.XPATH, './/a[text()="Agenda" or contains(text(), "Cancel")]')
 
-        print(agenda_link.find_element(By.XPATH, '../../preceding-sibling::*[5]').text) #date
-        print(agenda_link.get_attribute('href')) #agenda pdf link
+        agenda_date_str = agenda_link_elem.find_element(By.XPATH, '../../preceding-sibling::*[5]').text
+        agenda_link_str = agenda_link_elem.get_attribute('href') #pdf link
+
+        #print(agenda_date_str) #date
+        #print(agenda_link_str) #agenda pdf link
+        return Agenda(agenda_date_str, 'CC', 'Orange', agenda_link_str)
     # except:
     #     print("An exception occurred in get_last_agenda_co()")
     finally:
         driver.quit()
 
 
-# #TODO
+#TODO Selenium:
+#TODO Optimize!
+#TODO   - Can I bypass dropdown alltogether by searching entire page? would prevent page refresh/load... if not then:
+#TODO       - replace time.sleep with appropriate WebDriverWait (already tried element_to_be_clickable, try staleness_of?)
 def get_last_agenda_hb():
     options = FirefoxOptions()
     options.add_argument("--headless")
@@ -196,14 +226,23 @@ def get_last_agenda_hb():
             EC.presence_of_element_located((By.XPATH, '//*[@id="ctl00_ContentPlaceHolder1_gridCalendar_ctl00"]'))
         )
         all_meetings_table = driver.find_element(By.XPATH, '//*[@id="ctl00_ContentPlaceHolder1_gridCalendar_ctl00"]')
-        agenda_link = all_meetings_table.find_element(By.XPATH, './/a[contains(text(), "Agenda") or contains(text(), "CANCEL")]')
+        agenda_link_elem = all_meetings_table.find_element(By.XPATH, './/a[contains(text(), "Agenda") or contains(text(), "CANCEL")]')
 
-        print(agenda_link.find_element(By.XPATH, '../../preceding-sibling::*[5]').text) #date
-        print(agenda_link.get_attribute('href')) #agenda pdf link
+        agenda_date_str = agenda_link_elem.find_element(By.XPATH, '../../preceding-sibling::*[5]').text
+        agenda_link_str = agenda_link_elem.get_attribute('href') #pdf link :)
+
+        #print(agenda_date_str) #date
+        #print(agenda_link_str) #agenda pdf link
+        return Agenda(agenda_date_str, 'CC', 'Huntington Beach', agenda_link_str)
     # except:
     #     print("An exception occurred in get_last_agenda_hb()")
     finally:
         driver.quit()
 
-get_last_agenda_hb()
+print(get_last_agenda_an())
+print(get_last_agenda_sa())
+print(get_last_agenda_gg())
+print(get_last_agenda_co()) #returns wrong rn because upcoming most recent != most recent on search function
+print(get_last_agenda_hb())
+
 
