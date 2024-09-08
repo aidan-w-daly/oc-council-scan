@@ -84,8 +84,6 @@ def get_last_agenda_sa():
     finally:
         driver.quit()
 
-#FIXME cannot see upcoming meetings because only searches from 1 year ago to PRESENT DAY
-#       - Change to be (present day + 1 year)
 #TODO decrease time to run
 #TODO handle cancelled meetings
 #   - No way to detect? In URL only place where meeting shows "CANCELLED" is INSIDE pdf
@@ -133,7 +131,7 @@ def get_last_agenda_gg():
 
 #TODO Selenium:
 #TODO Optimize!
-#TODO   - Can I bypass dropdown alltogether by searching entire page? would prevent page refresh/load... if not then:
+#TODO   - Can I bypass dropdown alltogether by searching entire table with .contains? would prevent page refresh/load... if not then:
 #TODO       - replace time.sleep with appropriate WebDriverWait (already tried element_to_be_clickable, try staleness_of?)
 def get_last_agenda_co():
     options = FirefoxOptions()
