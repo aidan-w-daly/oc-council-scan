@@ -108,9 +108,14 @@ def get_last_agenda_gg():
         agenda_checkbox = driver.find_element(By.ID, 'SearchFilters_InNotification')
         agenda_checkbox.click()
 
+        #Adding 1 year to end of date range so upcoming meetings are also detected (defaults limit is present day)
+        todate_input = driver.find_element(By.ID, 'SearchFilters_ToDateStr')
+        todate_mdy = todate_input.get_attribute('value').split('/')
+        todate_input.clear()
+        todate_input.send_keys(f'{todate_mdy[0]}/{todate_mdy[1]}/{int(todate_mdy[2])+1}')
+
         search_button = driver.find_element(By.ID, 'searchbutton')
         search_button.click()
-        #By default, searches only within last year
 
         agenda_link_elem = WebDriverWait(driver, 60).until(
             EC.presence_of_element_located((By.PARTIAL_LINK_TEXT, ', City Council'))
@@ -239,10 +244,11 @@ def get_last_agenda_hb():
     finally:
         driver.quit()
 
-print(get_last_agenda_an())
-print(get_last_agenda_sa())
+# print(get_last_agenda_an())
+# print(get_last_agenda_sa())
 print(get_last_agenda_gg())
-print(get_last_agenda_co()) #returns wrong rn because upcoming most recent != most recent on search function
-print(get_last_agenda_hb())
+# print(get_last_agenda_co()) #returns wrong rn because upcoming most recent != most recent on search function
+# print(get_last_agenda_hb())
+
 
 
