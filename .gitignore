@@ -1,5 +1,9 @@
 #windows thumbnails
 Thumbs.db
 
+#agendas
+agendas
+
 #virtual environment
 .venv
+

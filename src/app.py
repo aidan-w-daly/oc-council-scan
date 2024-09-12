@@ -15,7 +15,7 @@ import requests
 #from re import A
 print("Running...")
 
-ROOT_DIR = str(Path(__file__).resolve().parent.parent)
+ROOT_DIR = Path(__file__).resolve().parent.parent
 
 #Where do new city council agendas get uploaded? + In what format?
 URL_ANAHEIM = "https://www.anaheim.net/2527/Agendas" #list of city council agenda links, + viewer
@@ -256,14 +256,17 @@ def get_last_agenda_hb():
 def download_agenda_pdf(*agendas: Agenda):
     '''Writes PDFS from Agenda's href, names them accordingly, and places them in proj/agendas'''
     print('downloading files...')
+    
+    (ROOT_DIR / 'agendas').mkdir(exist_ok = True)
+
     for agenda in agendas:
         response = requests.get(agenda.href)
 
         #writing to pdf file
-        with open(f'{ROOT_DIR}/agendas/{agenda.date} {agenda.city} {agenda.body}.pdf', 'wb') as agenda_pdf:
+        with open(f'{str(ROOT_DIR)}/agendas/{agenda.date} {agenda.city} {agenda.body}.pdf', 'wb') as agenda_pdf:
             agenda_pdf.write(response.content)
 
-        print(f'{ROOT_DIR}/agendas/{agenda.date} {agenda.city} {agenda.body}.pdf created')
+        print(f'{str(ROOT_DIR)}/agendas/{agenda.date} {agenda.city} {agenda.body}.pdf created')
     print('done')
 
 an = get_last_agenda_an()
@@ -278,7 +281,5 @@ hb = get_last_agenda_hb()
 print(hb)
 
 download_agenda_pdf(an, sa, gg, co, hb)
-
-
 
 
