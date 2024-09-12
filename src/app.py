@@ -6,29 +6,40 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.keys import Keys
+import datetime
+from dateutil import parser
+from pathlib import Path
 
 import time
 import requests
 #from re import A
-
 print("Running...")
 
+ROOT_DIR = str(Path(__file__).resolve().parent.parent)
+
 #Where do new city council agendas get uploaded? + In what format?
-url_anaheim = "https://www.anaheim.net/2527/Agendas" #list of city council agenda links, + viewer
-url_santa_ana = "https://santa-ana.primegov.com/public/portal?" #iframe, taken from https://www.santa-ana.org/agendas-and-minutes/
-url_garden_grove = "https://agendasuite.org/iip/gardengrove/search" #Have to search, filter by city council meetings
-url_city_of_orange = "https://cityoforange.legistar.com/Calendar.aspx" #List of city council meetings, agenda in each one
-url_huntington_beach = "https://huntingtonbeach.legistar.com/Calendar.aspx" #List of all meetings with agenda links
+URL_ANAHEIM = "https://www.anaheim.net/2527/Agendas" #list of city council agenda links, + viewer
+URL_SANTA_ANA = "https://santa-ana.primegov.com/public/portal?" #iframe, taken from https://www.santa-ana.org/agendas-and-minutes/
+URL_GARDEN_GROVE = "https://agendasuite.org/iip/gardengrove/search" #Have to search, filter by city council meetings
+URL_CITY_OF_ORANGE = "https://cityoforange.legistar.com/Calendar.aspx" #List of city council meetings, agenda in each one
+URL_HUNTINGTON_BEACH = "https://huntingtonbeach.legistar.com/Calendar.aspx" #List of all meetings with agenda links
 
 class Agenda:
     def __init__(self, date, body, city, href):
-        self.date = date
+        self.date = format_date(date)
         self.body = body
         self.city = city
         self.href = href
 
     def __str__(self):
         return f"{self.date} {self.city} {self.body}: {self.href}"
+
+def format_date(date):
+    '''take a date in various formats (single-digit days, word/abbreviated/number months, /2024 vs /24) 
+    and return string with format mm-dd-yyyy
+    '''
+    d = parser.parse(date)
+    return d.strftime('%m-%d-%Y')
 
 #TODO ALL
 #   - Handle agenda cancellation (notify user?)
@@ -41,11 +52,11 @@ class Agenda:
 #   - Exception handling (necessary? easier to bugfix w/o)
 
 def get_last_agenda_an():
-    page_anaheim = requests.get(url_anaheim)
+    page_anaheim = requests.get(URL_ANAHEIM)
     soup = BeautifulSoup(page_anaheim.content, "lxml")
     print_agenda = soup.find('a', class_='Hyperlink', title='Print Current Agenda')
     
-    #switching to frame inside url_anaheim to get date
+    #switching to frame inside URL_ANAHEIM to get date (mm/dd/yy h:mm xx)
     page_anaheim = requests.get('https://local.anaheim.net/OpenData/xml/XMLrender.aspx?x=CouncilMeetingAgendas')
     soup = BeautifulSoup(page_anaheim.content, 'lxml')
     agenda_date = soup.find('a', target='fraAgenda')
@@ -59,7 +70,7 @@ def get_last_agenda_sa():
     options = FirefoxOptions()
     options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
-    driver.get(url_santa_ana)
+    driver.get(URL_SANTA_ANA)
 
     try:
         WebDriverWait(driver, 60).until(
@@ -91,7 +102,7 @@ def get_last_agenda_gg():
     options = FirefoxOptions()
     options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
-    driver.get(url_garden_grove)
+    driver.get(URL_GARDEN_GROVE)
 
     try:
         WebDriverWait(driver, 60).until(
@@ -137,7 +148,7 @@ def get_last_agenda_co():
     options = FirefoxOptions()
     options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
-    driver.get(url_city_of_orange)
+    driver.get(URL_CITY_OF_ORANGE)
 
     try:
         #Selecting 'all years' as "dropdown"(<input>) "option" (<li>)
@@ -193,7 +204,7 @@ def get_last_agenda_hb():
     options = FirefoxOptions()
     options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
-    driver.get(url_huntington_beach)
+    driver.get(URL_HUNTINGTON_BEACH)
 
     try:
         #Selecting 'all years' as "dropdown"(<input>) "option" (<li>)
@@ -242,11 +253,32 @@ def get_last_agenda_hb():
     finally:
         driver.quit()
 
-# print(get_last_agenda_an())
-# print(get_last_agenda_sa())
-print(get_last_agenda_gg())
-# print(get_last_agenda_co()) #returns wrong rn because upcoming most recent != most recent on search function
-# print(get_last_agenda_hb())
+def download_agenda_pdf(*agendas: Agenda):
+    '''Writes PDFS from Agenda's href, names them accordingly, and places them in proj/agendas'''
+    print('downloading files...')
+    for agenda in agendas:
+        response = requests.get(agenda.href)
+
+        #writing to pdf file
+        with open(f'{ROOT_DIR}/agendas/{agenda.date} {agenda.city} {agenda.body}.pdf', 'wb') as agenda_pdf:
+            agenda_pdf.write(response.content)
+
+        print(f'{ROOT_DIR}/agendas/{agenda.date} {agenda.city} {agenda.body}.pdf created')
+    print('done')
+
+an = get_last_agenda_an()
+print(an)
+sa = get_last_agenda_sa()
+print(sa)
+gg = get_last_agenda_gg()
+print(gg)
+co = get_last_agenda_co()
+print(co)
+hb = get_last_agenda_hb()
+print(hb)
+
+download_agenda_pdf(an, sa, gg, co, hb)
+
 
 
 
