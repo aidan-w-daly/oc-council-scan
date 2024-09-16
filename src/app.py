@@ -267,20 +267,21 @@ def get_last_cc_hb() -> Meeting:
     finally:
         driver.quit()
 
-def download_agenda_pdf(meeting: Meeting) -> None:
+def download_agenda_pdf(*meetings: Meeting) -> None:
     '''download a Meeting's agenda in pdf form to ./agendas folder'''
     
     (ROOT_DIR_PATH / 'agendas').mkdir(exist_ok = True)
 
-    file_path = meeting.pdf_path()
+    for m in meetings:
+        file_path = m.pdf_path()
 
-    print(f'downloading to {str(file_path)}')
+        print(f'downloading to {str(file_path)}')
 
-    response = requests.get(meeting.href)
-    with file_path.open('wb') as f:
-        f.write(response.content)
-    
-    print(f'downloading to {str(file_path)} created.')
+        response = requests.get(m.href)
+        with file_path.open('wb') as f:
+            f.write(response.content)
+        
+        print(f' {str(file_path)} created.')
 
 def download_agenda_txt(*meetings: Meeting) -> None:
     (ROOT_DIR_PATH / 'agendas').mkdir(exist_ok = True)
