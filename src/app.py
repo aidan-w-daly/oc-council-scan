@@ -1,3 +1,4 @@
+from re import search
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -9,13 +10,14 @@ from selenium.webdriver.common.keys import Keys
 import datetime
 from dateutil import parser
 from pathlib import Path
+from pypdf import PdfReader
 
 import time
 import requests
 #from re import A
 print("Running...")
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR_PATH = Path(__file__).resolve().parent.parent
 
 #Where do new city council agendas get uploaded? + In what format?
 URL_ANAHEIM = "https://www.anaheim.net/2527/Agendas" #list of city council agenda links, + viewer
@@ -24,7 +26,7 @@ URL_GARDEN_GROVE = "https://agendasuite.org/iip/gardengrove/search" #Have to sea
 URL_CITY_OF_ORANGE = "https://cityoforange.legistar.com/Calendar.aspx" #List of city council meetings, agenda in each one
 URL_HUNTINGTON_BEACH = "https://huntingtonbeach.legistar.com/Calendar.aspx" #List of all meetings with agenda links
 
-class Agenda:
+class Meeting:
     def __init__(self, date, body, city, href):
         self.date = format_date(date)
         self.body = body
@@ -33,6 +35,14 @@ class Agenda:
 
     def __str__(self):
         return f"{self.date} {self.city} {self.body}: {self.href}"
+    
+    #TODO Can use @property to allow Meeting.pdf instead of Meeting.pdf() ?
+    def pdf_path(self) -> Path:
+        '''returns Path, location of Meeting's agenda in pdf form. Uses Path instead of str so Path operations can be used'''
+        return ROOT_DIR_PATH / 'agendas' / f'{self.date} {self.city} {self.body}.pdf'
+        #return f'{str(ROOT_DIR_PATH)}\agendas\{self.date} {self.city} {self.body}.pdf'
+
+
 
 def format_date(date):
     '''take a date in various formats (single-digit days, word/abbreviated/number months, /2024 vs /24) 
@@ -51,7 +61,11 @@ def format_date(date):
 #       - Can html agenda be used instead of pdf agenda?
 #   - Exception handling (necessary? easier to bugfix w/o)
 
-def get_last_agenda_an():
+def get_last_cc_all() -> tuple[Meeting]:
+    return get_last_cc_an(), get_last_cc_sa(), get_last_cc_gg(), get_last_cc_co(), get_last_cc_hb()
+
+
+def get_last_cc_an() -> Meeting:
     page_anaheim = requests.get(URL_ANAHEIM)
     soup = BeautifulSoup(page_anaheim.content, "lxml")
     print_agenda = soup.find('a', class_='Hyperlink', title='Print Current Agenda')
@@ -63,10 +77,10 @@ def get_last_agenda_an():
 
     #print(agenda_date.text)
     #print(print_agenda['href'])
-    return Agenda(agenda_date.text, 'CC', 'Anaheim', print_agenda['href'])
+    return Meeting(agenda_date.text, 'CC', 'Anaheim', print_agenda['href'])
 
 #TODO decrease time to run
-def get_last_agenda_sa():
+def get_last_cc_sa() -> Meeting:
     options = FirefoxOptions()
     options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
@@ -89,7 +103,7 @@ def get_last_agenda_sa():
         #print(agenda_title_cell.text) #Meeting name
         #print(agenda_date_cell.text) #Date/Time
         #print(agenda_link.get_attribute('href')) #link
-        return Agenda(agenda_date_cell.text, 'CC', 'Santa Ana', agenda_link.get_attribute('href'))
+        return Meeting(agenda_date_cell.text, 'CC', 'Santa Ana', agenda_link.get_attribute('href'))
     # except:
     #     print("An exception occurred in get_last_agenda_sa()")
     finally:
@@ -98,7 +112,7 @@ def get_last_agenda_sa():
 #TODO decrease time to run
 #TODO handle cancelled meetings
 #   - No way to detect? In URL only place where meeting shows "CANCELLED" is INSIDE pdf
-def get_last_agenda_gg():
+def get_last_cc_gg() -> Meeting:
     options = FirefoxOptions()
     options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
@@ -134,7 +148,7 @@ def get_last_agenda_gg():
         agenda_link_str = agenda_link_elem.get_attribute('href') #pdf link
         #print(agenda_date_str) #date
         #print(agenda_link_str) #agenda pdf link
-        return Agenda(agenda_date_str, 'CC', 'Garden Grove', agenda_link_str)
+        return Meeting(agenda_date_str, 'CC', 'Garden Grove', agenda_link_str)
     # except:
     #     print("An exception occurred in get_last_agenda_gg()")
     finally:
@@ -144,7 +158,7 @@ def get_last_agenda_gg():
 #TODO Optimize!
 #TODO   - Can I bypass dropdown alltogether by searching entire table with .contains? would prevent page refresh/load... if not then:
 #TODO       - replace time.sleep with appropriate WebDriverWait (already tried element_to_be_clickable, try staleness_of?)
-def get_last_agenda_co():
+def get_last_cc_co() -> Meeting:
     options = FirefoxOptions()
     options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
@@ -164,7 +178,7 @@ def get_last_agenda_co():
         date_dropdown.send_keys(Keys.ENTER)
 
 
-        time.sleep(5)
+        time.sleep(3)
         #selecting city council in department "dropdown" 
         WebDriverWait(driver, 60).until(
             EC.element_to_be_clickable((By.ID, 'ctl00_ContentPlaceHolder1_lstBodies_Input'))
@@ -176,7 +190,7 @@ def get_last_agenda_co():
         departments_dropdown.send_keys(Keys.ENTER)
 
 
-        time.sleep(5)
+        time.sleep(3)
         #searching table for agenda
         WebDriverWait(driver, 60).until(
             EC.presence_of_element_located((By.XPATH, '//*[@id="ctl00_ContentPlaceHolder1_gridCalendar_ctl00"]'))
@@ -189,7 +203,7 @@ def get_last_agenda_co():
 
         #print(agenda_date_str) #date
         #print(agenda_link_str) #agenda pdf link
-        return Agenda(agenda_date_str, 'CC', 'Orange', agenda_link_str)
+        return Meeting(agenda_date_str, 'CC', 'Orange', agenda_link_str)
     # except:
     #     print("An exception occurred in get_last_agenda_co()")
     finally:
@@ -200,7 +214,7 @@ def get_last_agenda_co():
 #TODO Optimize!
 #TODO   - Can I bypass dropdown alltogether by searching entire page? would prevent page refresh/load... if not then:
 #TODO       - replace time.sleep with appropriate WebDriverWait (already tried element_to_be_clickable, try staleness_of?)
-def get_last_agenda_hb():
+def get_last_cc_hb() -> Meeting:
     options = FirefoxOptions()
     options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
@@ -247,39 +261,67 @@ def get_last_agenda_hb():
 
         #print(agenda_date_str) #date
         #print(agenda_link_str) #agenda pdf link
-        return Agenda(agenda_date_str, 'CC', 'Huntington Beach', agenda_link_str)
+        return Meeting(agenda_date_str, 'CC', 'Huntington Beach', agenda_link_str)
     # except:
     #     print("An exception occurred in get_last_agenda_hb()")
     finally:
         driver.quit()
 
-def download_agenda_pdf(*agendas: Agenda):
-    '''Writes PDFS from Agenda's href, names them accordingly, and places them in proj/agendas'''
-    print('downloading files...')
+def download_agenda_pdf(meeting: Meeting) -> None:
+    '''download a Meeting's agenda in pdf form to ./agendas folder'''
     
-    (ROOT_DIR / 'agendas').mkdir(exist_ok = True)
+    (ROOT_DIR_PATH / 'agendas').mkdir(exist_ok = True)
 
-    for agenda in agendas:
-        response = requests.get(agenda.href)
+    file_path = meeting.pdf_path()
 
-        #writing to pdf file
-        with open(f'{str(ROOT_DIR)}/agendas/{agenda.date} {agenda.city} {agenda.body}.pdf', 'wb') as agenda_pdf:
-            agenda_pdf.write(response.content)
+    print(f'downloading to {str(file_path)}')
 
-        print(f'{str(ROOT_DIR)}/agendas/{agenda.date} {agenda.city} {agenda.body}.pdf created')
-    print('done')
+    response = requests.get(meeting.href)
+    with file_path.open('wb') as f:
+        f.write(response.content)
+    
+    print(f'downloading to {str(file_path)} created.')
 
-an = get_last_agenda_an()
-print(an)
-sa = get_last_agenda_sa()
-print(sa)
-gg = get_last_agenda_gg()
-print(gg)
-co = get_last_agenda_co()
-print(co)
-hb = get_last_agenda_hb()
-print(hb)
+def download_agenda_txt(*meetings: Meeting) -> None:
+    (ROOT_DIR_PATH / 'agendas').mkdir(exist_ok = True)
+    for m in meetings:
+        pdf_path = m.pdf_path()
 
-download_agenda_pdf(an, sa, gg, co, hb)
+        if(not pdf_path.exists()):
+            print('Agenda PDF not found.')
+            download_agenda_pdf(m)
+
+        txt_path = pdf_path.with_suffix('.txt')
+        with txt_path.open('w', encoding="utf-8") as f:
+            f.write(pdf_to_str(pdf_path))
 
 
+#---
+#TODO write functions that:
+# 1. Convert pdf to text -> str
+# 2. Parse text to agenda items -> tuple of strs
+# 3. Search tuple for keywords (therefore, searching each )
+#---
+
+#TODO finish me
+def parse_agenda_pdf(path: Path) -> tuple:
+    '''Converts agenda pdf into tuple of agenda items'''
+    agenda = pdf_to_str(path)
+
+#TODO is it faster with StringIO object? concatenating with .write(str) instead of +=str?
+#TODO extract_text() args: removing headers/footers, text 
+def pdf_to_str(pdf_path: Path) -> str:
+    reader = PdfReader(pdf_path)
+    text = ''
+    for page in reader.pages:
+        text += f'{page.extract_text(orientations=0)}\n'
+    return text
+
+#TODO make recursive, just in case :^)
+def delete_agendas():
+    '''Deletes contents of agendas folder AND deletes folder, which is NOT a default capability of pathlib
+    NOT RECURSIVE! Only deletes FILES immediately under /agenda
+    '''
+    pass
+
+download_agenda_txt(*get_last_cc_all())
