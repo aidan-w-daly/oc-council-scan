@@ -1,3 +1,4 @@
+from operator import truediv
 from re import search
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -267,34 +268,88 @@ def get_last_cc_hb() -> Meeting:
     finally:
         driver.quit()
 
-def download_agenda_pdf(*meetings: Meeting) -> None:
-    '''download a Meeting's agenda in pdf form to ./agendas folder'''
+# Will probably need different functions per city... ugh
+def parse_agenda_to_items(agenda_string: str):
+    pass
     
+# TODO implement function to: Returns list(str) of agenda items that contain keywords
+#   1. Find index of keywords
+#   2. Backtrack until start of agenda item is found via item delimiter
+#   3. Forward-track until start of next agenda item is found via delimiter
+#   4. Add str, boundaries in from steps 2 and 3, to return list
+# TODO Consider Two-dimensional list: Keywords x Items, where (keyword, item) is true or false? We don't care abt falses tho...
+def find_item_by_keywords(agenda_str: str, item_delimiter: str, keywords: list) -> list:
+    '''If an agenda item contains a keyword, it is considered positive'''
+    positive_items = []
+    for kw in keywords:
+        positive_items.append
+    
+
+    return positive_items
+
+# TODO generator? 
+# Returns list of indexes - ALL locations of ONE keyword. empty list if no 
+def get_keyword_indexes(agenda_str: str, keyword: str) -> list:
+    keyword_locations = []
+    i = 0
+    while(True):
+        try:
+            i = agenda_str.index(keyword, i) + len(keyword)
+            keyword_locations.append(i - len(keyword)) # exception if not found
+        except ValueError as e:
+            break
+    
+    return keyword_locations
+    
+
+def pdf_to_txt(meeting: Meeting) -> Path:
+    '''Passes Meeting instead of Path to create a missing PDF agenda'''
+    (ROOT_DIR_PATH / 'agendas').mkdir(exist_ok = True)
+    pdf_path = meeting.pdf_path()
+
+    if(not pdf_path.exists()):
+        print(f'Agenda at {pdf_path} not found. Creating now...')
+        download_agenda_pdf(meeting)
+
+    txt_path = pdf_path.with_suffix('.txt')
+    with txt_path.open('w', encoding="utf-8") as f:
+        f.write(pdf_to_str(pdf_path))
+    
+    return txt_path
+
+#TODO is it faster with StringIO object? concatenating with .write(str) instead of +=str?
+#TODO extract_text() args: removing headers/footers, text 
+def pdf_to_str(pdf_path: Path) -> str:
+    reader = PdfReader(pdf_path)
+    parts = []
+    text = ''
+
+    def visitor_body(text, cm, tm, font_dict, font_size):
+        '''This function is how pypdf allows extract_text() to ignore header/footer'''
+        y = cm[5]
+        if 50 < y < 720:
+            parts.append(text)
+
+    for page in reader.pages:
+        text += f'{page.extract_text(orientations=0)}\n'
+    return text
+
+
+def download_agenda_pdf(meeting: Meeting) -> Path:
+    '''download a Meeting's agenda in pdf form to ./agendas folder'''
     (ROOT_DIR_PATH / 'agendas').mkdir(exist_ok = True)
 
-    for m in meetings:
-        file_path = m.pdf_path()
+    file_path = meeting.pdf_path()
 
-        print(f'downloading to {str(file_path)}')
+    print(f'Creating {str(file_path)}')
 
-        response = requests.get(m.href)
-        with file_path.open('wb') as f:
-            f.write(response.content)
-        
-        print(f' {str(file_path)} created.')
+    response = requests.get(meeting.href)
+    with file_path.open('wb') as f:
+        f.write(response.content)
+    
+    print(f' {str(file_path)} created.')
+    return file_path
 
-def download_agenda_txt(*meetings: Meeting) -> None:
-    (ROOT_DIR_PATH / 'agendas').mkdir(exist_ok = True)
-    for m in meetings:
-        pdf_path = m.pdf_path()
-
-        if(not pdf_path.exists()):
-            print('Agenda PDF not found.')
-            download_agenda_pdf(m)
-
-        txt_path = pdf_path.with_suffix('.txt')
-        with txt_path.open('w', encoding="utf-8") as f:
-            f.write(pdf_to_str(pdf_path))
 
 
 #---
@@ -309,20 +364,9 @@ def parse_agenda_pdf(path: Path) -> tuple:
     '''Converts agenda pdf into tuple of agenda items'''
     agenda = pdf_to_str(path)
 
-#TODO is it faster with StringIO object? concatenating with .write(str) instead of +=str?
-#TODO extract_text() args: removing headers/footers, text 
-def pdf_to_str(pdf_path: Path) -> str:
-    reader = PdfReader(pdf_path)
-    text = ''
-    for page in reader.pages:
-        text += f'{page.extract_text(orientations=0)}\n'
-    return text
-
 #TODO make recursive, just in case :^)
 def delete_agendas():
     '''Deletes contents of agendas folder AND deletes folder, which is NOT a default capability of pathlib
     NOT RECURSIVE! Only deletes FILES immediately under /agenda
     '''
     pass
-
-download_agenda_txt(*get_last_cc_all())

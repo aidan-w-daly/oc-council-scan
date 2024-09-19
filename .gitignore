@@ -4,6 +4,8 @@ Thumbs.db
 #agendas
 agendas
 
+src/__pycache__
+
 #virtual environment
 .venv
 
